@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="SichPlan Pro"/>
+  <meta name="theme-color" content="#0a1628"/>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png"/>
+  <title>SichPlan Pro – Sicherheitstechnik Planungstool</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%;width:100%;overflow:hidden}
+    body{font-family:system-ui,sans-serif;background:#0f172a}
+    select,input,button{font-family:inherit}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:#0f172a}
+    ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useCallback, useMemo, useEffect } = React;
+
+// ═══════════════════════════════════════════════════════
+//  DATEN
+// ═══════════════════════════════════════════════════════
+const CATS = {
+  bma: {
+    label:"Brandmeldeanlage", short:"BMA", color:"#ef4444",
+    norm:"DIN EN 54 / DIN 14675",
+    items:[
+      {id:"bma_rme", name:"Opt. Rauchmelder",       short:"RM-O",  norm:"EN 54-7",    cable:"nhxch_2"},
+      {id:"bma_rmt", name:"Wärmemelder Diff.",       short:"WM-D",  norm:"EN 54-5",    cable:"nhxch_2"},
+      {id:"bma_rmc", name:"CO-Melder",               short:"CO",    norm:"EN 50291",   cable:"nhxch_2"},
+      {id:"bma_hfm", name:"Handfeuermelder",         short:"HFM",   norm:"EN 54-11",   cable:"nhxch_2"},
+      {id:"bma_bmz", name:"Brandmeldezentrale",      short:"BMZ",   norm:"EN 54-2",    cable:"nhxch_2"},
+      {id:"bma_fbf", name:"FW-Bedienfeld",           short:"FBF",   norm:"DIN 14661",  cable:"nhxch_2"},
+      {id:"bma_snd", name:"Akust. Signalgeber",      short:"SG-A",  norm:"EN 54-3",    cable:"nhxch_2"},
+      {id:"bma_bli", name:"Opt. Signalgeber",        short:"SG-O",  norm:"EN 54-23",   cable:"nhxch_2"},
+      {id:"bma_lrm", name:"Linienrauchmelder",       short:"LRM",   norm:"EN 54-12",   cable:"nhxch_2"},
+      {id:"bma_mac", name:"Meldergruppe/MAC",        short:"MG",    norm:"DIN 14675",  cable:"nhxch_2"},
+    ],
+  },
+  ema: {
+    label:"Einbruchmeldeanlage", short:"EMA", color:"#3b82f6",
+    norm:"DIN VDE 0833-3 / EN 50131",
+    items:[
+      {id:"ema_pir", name:"Bewegungsmelder PIR",     short:"PIR",   norm:"EN 50131-2-2", cable:"ycy_2"},
+      {id:"ema_mk",  name:"Magnetkontakt",           short:"MK",    norm:"EN 50131-2-6", cable:"ycy_2"},
+      {id:"ema_gb",  name:"Glasbruchmelder",         short:"GBM",   norm:"EN 50131-2-7", cable:"ycy_2"},
+      {id:"ema_vib", name:"Erschütterungsmelder",    short:"EM",    norm:"EN 50131-2-8", cable:"ycy_2"},
+      {id:"ema_zkz", name:"EMA-Zentrale",            short:"EMA-Z", norm:"EN 50131-3",   cable:"ycy_2"},
+      {id:"ema_bda", name:"Bedienteil/Tableau",      short:"BDT",   norm:"EN 50131-3",   cable:"ycy_2"},
+      {id:"ema_sir", name:"Außensirene",             short:"AS",    norm:"EN 50131-4",   cable:"ycy_2"},
+      {id:"ema_uem", name:"Überfallmelder",          short:"ÜM",    norm:"VdS 2311",     cable:"ycy_2"},
+      {id:"ema_det", name:"Dualmelder PIR+MW",       short:"DM",    norm:"EN 50131-2-3", cable:"ycy_2"},
+    ],
+  },
+  zk: {
+    label:"Zugangskontrolle", short:"ZK", color:"#22c55e",
+    norm:"EN 60839 / DIN 18252",
+    items:[
+      {id:"zk_leser",  name:"Kartenleser",           short:"KL",   norm:"EN 60839-11-1", cable:"cat6"},
+      {id:"zk_finger", name:"Fingerabdruckleser",    short:"FAL",  norm:"EN 60839-11-1", cable:"cat6"},
+      {id:"zk_pin",    name:"PIN-Leser/Code",        short:"PIN",  norm:"EN 60839-11-1", cable:"cat6"},
+      {id:"zk_eo",     name:"Elektr. Türöffner",     short:"EO",   norm:"DIN 18252",     cable:"ycy_2"},
+      {id:"zk_ms",     name:"Motorschloss",          short:"MS",   norm:"DIN 18252",     cable:"ycy_2"},
+      {id:"zk_tm",     name:"Türmagnet/Haftmagnet",  short:"TM",   norm:"EN 1155",       cable:"ycy_2"},
+      {id:"zk_zkz",    name:"ZK-Zentrale",           short:"ZKZ",  norm:"EN 60839-11-1", cable:"cat6"},
+      {id:"zk_ts",     name:"Türschließer",          short:"TS",   norm:"EN 1154",       cable:null},
+    ],
+  },
+  vt: {
+    label:"Videotechnik", short:"VT", color:"#a855f7",
+    norm:"EN 50132 / DIN VDE 0833-5",
+    items:[
+      {id:"vt_dome",  name:"Domekamera IP",         short:"CAM-D", norm:"EN 50132-1",   cable:"cat6"},
+      {id:"vt_box",   name:"Boxkamera",             short:"CAM-B", norm:"EN 50132-1",   cable:"cat6"},
+      {id:"vt_ptz",   name:"PTZ-Kamera",            short:"CAM-P", norm:"EN 50132-1",   cable:"cat6"},
+      {id:"vt_therm", name:"Wärmebildkamera",       short:"CAM-T", norm:"EN 50132-1",   cable:"cat6"},
+      {id:"vt_nvr",   name:"NVR/Rekorder",          short:"NVR",   norm:"EN 50132-5",   cable:"cat6"},
+      {id:"vt_mon",   name:"Monitor/Videowand",     short:"MON",   norm:"EN 50132-5",   cable:"cat6"},
+      {id:"vt_sw",    name:"PoE-Switch",            short:"SW",    norm:"IEEE 802.3",   cable:"cat6"},
+      {id:"vt_poe",   name:"PoE-Injector",          short:"POE",   norm:"IEEE 802.3at", cable:"cat6"},
+    ],
+  },
+  saa: {
+    label:"Sprachalarmierungsanlage", short:"SAA", color:"#f59e0b",
+    norm:"DIN EN 54-16 / DIN VDE 0833-4",
+    items:[
+      {id:"saa_zentrale",  name:"SAA-Zentrale (EVAC)",    short:"SAA-Z",  norm:"EN 54-16",     cable:"nhxch_2"},
+      {id:"saa_verst",     name:"Verstärkereinheit",       short:"VERST",  norm:"EN 54-16",     cable:"nhxch_2"},
+      {id:"saa_lautspr",   name:"Lautsprecher Decke",      short:"LS-D",   norm:"EN 54-24",     cable:"nyfaz_15"},
+      {id:"saa_lswand",    name:"Lautsprecher Wand",       short:"LS-W",   norm:"EN 54-24",     cable:"nyfaz_15"},
+      {id:"saa_lshorn",    name:"Hornstrahler Außen",      short:"LS-H",   norm:"EN 54-24",     cable:"nyfaz_15"},
+      {id:"saa_mik",       name:"Feuerwehr-Mikrofon",      short:"MIK",    norm:"EN 54-16",     cable:"nhxch_2"},
+      {id:"saa_tableau",   name:"SAA-Bedientableau",       short:"SAA-BT", norm:"EN 54-16",     cable:"nhxch_2"},
+      {id:"saa_linienverst",name:"Leitungsverstärker",     short:"LV",     norm:"EN 54-16",     cable:"nyfaz_15"},
+      {id:"saa_monitor",   name:"SAA-Statusmonitor",       short:"SAA-M",  norm:"EN 54-16",     cable:"cat6"},
+    ],
+  },
+  intercom: {
+    label:"Türsprechanlage/Intercom", short:"IC", color:"#06b6d4",
+    norm:"EN 60839 / VdS 2311 / SIA",
+    items:[
+      {id:"ic_aussenst",   name:"Außenstation Video",      short:"AS-V",   norm:"EN 60839",     cable:"cat6"},
+      {id:"ic_aussenst_a", name:"Außenstation Audio",      short:"AS-A",   norm:"EN 60839",     cable:"bus"},
+      {id:"ic_innenst",    name:"Innenstation Display",    short:"IS-D",   norm:"EN 60839",     cable:"cat6"},
+      {id:"ic_innenst_a",  name:"Innenstation Audio",      short:"IS-A",   norm:"EN 60839",     cable:"bus"},
+      {id:"ic_zentrale",   name:"Intercom-Zentrale",       short:"IC-Z",   norm:"EN 60839",     cable:"cat6"},
+      {id:"ic_tueroff",    name:"Türöffner (Relais)",      short:"TÖ",     norm:"DIN 18252",    cable:"ycy_2"},
+      {id:"ic_klingel",    name:"Klingeltaster",           short:"KL",     norm:"EN 60839",     cable:"ycy_2"},
+      {id:"ic_portier",    name:"Portier-/Empfangsstation",short:"PORT",   norm:"EN 60839",     cable:"cat6"},
+      {id:"ic_gateway",    name:"SIP/IP-Gateway",          short:"GW",     norm:"RFC 3261",     cable:"cat6"},
+      {id:"ic_ruf",        name:"Rufumleitung/Modul",      short:"RUM",    norm:"EN 60839",     cable:"bus"},
+    ],
+  },
+};
+
+// Kabelgruppen für UI-Gliederung
+const CABLE_GROUPS = [
+  {
+    label:"Funktionserhalt (FE)", color:"#ef4444",
+    ids:["nhxch_2","nhxch_4","nhxch_8","nhxch_12","nhxch_e90"],
+  },
+  {
+    label:"Fernmeldekabel JY(St)Y", color:"#94a3b8",
+    ids:["jy_2","jy_4","jy_6","jy_10","jy_20","jy_30"],
+  },
+  {
+    label:"Steuerkabel LiYCY", color:"#3b82f6",
+    ids:["ycy_2","ycy_4","ycy_8","ycy_12"],
+  },
+  {
+    label:"Datennetz / IT", color:"#a855f7",
+    ids:["cat6","cat7","lwl_sm","lwl_mm"],
+  },
+  {
+    label:"Stromversorgung", color:"#f97316",
+    ids:["nyfaz_15","nyfaz_25","nym_3","nym_5"],
+  },
+  {
+    label:"Bus / Sonstige", color:"#06b6d4",
+    ids:["bus","koax","custom"],
+  },
+];
+
+const CABLES = [
+  // ── Funktionserhalt ───────────────────────────────────────────
+  {id:"nhxch_2",  name:"NHXCH FE180 E30", spec:"2x2x0,8",   color:"#ef4444", dash:"",      desc:"Funktionserhalt 90 min – 2-paarig"},
+  {id:"nhxch_4",  name:"NHXCH FE180 E30", spec:"4x2x0,8",   color:"#ef4444", dash:"2 1",   desc:"Funktionserhalt 90 min – 4-paarig"},
+  {id:"nhxch_8",  name:"NHXCH FE180 E30", spec:"8x2x0,8",   color:"#dc2626", dash:"2 1",   desc:"Funktionserhalt 90 min – 8-paarig"},
+  {id:"nhxch_12", name:"NHXCH FE180 E30", spec:"12x2x0,8",  color:"#b91c1c", dash:"2 1",   desc:"Funktionserhalt 90 min – 12-paarig"},
+  {id:"nhxch_e90",name:"NHXCH FE180 E90", spec:"2x2x0,8",   color:"#fca5a5", dash:"",      desc:"Funktionserhalt 90 min erhöht – E90"},
+  // ── JY(St)Y Fernmeldekabel ─────────────────────────────────────
+  {id:"jy_2",  name:"JY(St)Y",  spec:"2x2x0,8",  color:"#94a3b8", dash:"8 3",   desc:"Fernmeldekabel 2-paarig – BMA/allg."},
+  {id:"jy_4",  name:"JY(St)Y",  spec:"4x2x0,8",  color:"#94a3b8", dash:"6 3",   desc:"Fernmeldekabel 4-paarig"},
+  {id:"jy_6",  name:"JY(St)Y",  spec:"6x2x0,8",  color:"#64748b", dash:"6 3",   desc:"Fernmeldekabel 6-paarig"},
+  {id:"jy_10", name:"JY(St)Y",  spec:"10x2x0,8", color:"#64748b", dash:"4 3",   desc:"Fernmeldekabel 10-paarig – Sammler"},
+  {id:"jy_20", name:"JY(St)Y",  spec:"20x2x0,8", color:"#475569", dash:"4 3",   desc:"Fernmeldekabel 20-paarig – Hauptstrang"},
+  {id:"jy_30", name:"JY(St)Y",  spec:"30x2x0,8", color:"#334155", dash:"4 3",   desc:"Fernmeldekabel 30-paarig – Steigleitung"},
+  // ── LiYCY Steuerkabel ─────────────────────────────────────────
+  {id:"ycy_2",  name:"LiYCY",   spec:"2x2x0,5",  color:"#3b82f6", dash:"5 3",   desc:"Steuerkabel 2-paarig – EMA/ZK"},
+  {id:"ycy_4",  name:"LiYCY",   spec:"4x2x0,5",  color:"#2563eb", dash:"5 3",   desc:"Steuerkabel 4-paarig"},
+  {id:"ycy_8",  name:"LiYCY",   spec:"8x2x0,5",  color:"#1d4ed8", dash:"4 2",   desc:"Steuerkabel 8-paarig – Gruppenleitung"},
+  {id:"ycy_12", name:"LiYCY",   spec:"12x2x0,5", color:"#1e40af", dash:"4 2",   desc:"Steuerkabel 12-paarig – Sammelleitung"},
+  // ── Datennetz ─────────────────────────────────────────────────
+  {id:"cat6",   name:"CAT 6A S/FTP",  spec:"4x2 AWG23",  color:"#a855f7", dash:"3 2",   desc:"IP-Video / ZK / Intercom"},
+  {id:"cat7",   name:"CAT 7 S/FTP",   spec:"4x2 AWG23",  color:"#7c3aed", dash:"2 1",   desc:"High-Speed Datennetz ≥10 GBit/s"},
+  {id:"lwl_sm", name:"LWL SM G.652D", spec:"2G 9/125 µm", color:"#fbbf24", dash:"8 4",  desc:"Singlemode-LWL – Distanz >2 km"},
+  {id:"lwl_mm", name:"LWL MM OM4",    spec:"2G 50/125 µm",color:"#d97706", dash:"8 4",  desc:"Multimode-LWL – bis 550 m @ 10G"},
+  // ── Stromversorgung ───────────────────────────────────────────
+  {id:"nyfaz_15",name:"NYFAz FE30",   spec:"2x1,5",      color:"#f97316", dash:"10 3",  desc:"Stromversorgung FE30 – SAA-LS"},
+  {id:"nyfaz_25",name:"NYFAz FE30",   spec:"2x2,5",      color:"#ea580c", dash:"10 3",  desc:"Stromversorgung FE30 – höhere Last"},
+  {id:"nym_3",   name:"NYM-J",        spec:"3x1,5",      color:"#78716c", dash:"",      desc:"Netzleitung 230V – allg. Versorgung"},
+  {id:"nym_5",   name:"NYM-J",        spec:"5x1,5",      color:"#57534e", dash:"",      desc:"Netzleitung 230V/3-ph. – Zentralen"},
+  // ── Bus / Sonstige ────────────────────────────────────────────
+  {id:"bus",    name:"RS485/BUS",     spec:"2x0,6",      color:"#06b6d4", dash:"4 2 4 2",desc:"Wiegand / RS485 / Intercom-Bus"},
+  {id:"koax",   name:"RG59 Koaxial",  spec:"75 Ω",       color:"#92400e", dash:"8 2 2 2",desc:"Analoges Videosignal"},
+  {id:"custom", name:"Benutzerdefiniert",spec:"...",      color:"#6b7280", dash:"6 3",   desc:"Eigene Kabeldefinition"},
+];
+
+const getAllItems = () => Object.values(CATS).flatMap(c => c.items);
+const getItem    = id => getAllItems().find(i => i.id === id);
+const getCat     = typeId => Object.values(CATS).find(c => c.items.some(i => i.id === typeId));
+const getCable   = id => CABLES.find(c => c.id === id) || CABLES[0];
+let _nid = 1;
+const genId = () => `n${_nid++}`;
+
+// ═══════════════════════════════════════════════════════
+//  NORMZEICHEN (SVG)
+// ═══════════════════════════════════════════════════════
+function Sym({typeId, size=44}) {
+  const s=size, h=s/2, sw=Math.max(1,s/30);
+  const cat=getCat(typeId);
+  const col=cat?.color||"#6b7280";
+  const W=(ch)=>(
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{overflow:"visible",display:"block"}}>
+      {ch}
+    </svg>
+  );
+
+  // BMA
+  if(typeId==="bma_rme") return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><line x1={7} y1={h} x2={s-7} y2={h} stroke={col} strokeWidth={sw}/><circle cx={h} cy={h} r={2.5} fill={col}/></>);
+  if(typeId==="bma_rmt") return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${h-8},${h-2} Q${h-3},${h-7} ${h},${h-2} Q${h+3},${h+3} ${h+8},${h-2}`} fill="none" stroke={col} strokeWidth={sw}/><path d={`M${h-8},${h+4} Q${h-3},${h-1} ${h},${h+4} Q${h+3},${h+9} ${h+8},${h+4}`} fill="none" stroke={col} strokeWidth={sw}/></>);
+  if(typeId==="bma_rmc") return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h+1} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.22} fontWeight="700" fill={col}>CO</text></>);
+  if(typeId==="bma_hfm") return W(<><rect x={5} y={6} width={s-10} height={s-11} rx={2} fill="white" stroke={col} strokeWidth={sw}/><line x1={5} y1={6} x2={s-5} y2={s-5} stroke={col} strokeWidth={sw}/><rect x={13} y={11} width={s/2-4} height={7} rx={1} fill={col}/></>);
+  if(typeId==="bma_bmz") return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw+0.5}/><line x1={3} y1={15} x2={s-3} y2={15} stroke={col} strokeWidth={1}/><text x={h} y={h+5} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.2} fontWeight="700" fill={col}>BMZ</text></>);
+  if(typeId==="bma_fbf") return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h-2} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.18} fontWeight="700" fill={col}>FBF</text><circle cx={h} cy={h+8} r={3} fill={col}/></>);
+  if(typeId==="bma_snd") return W(<><polygon points={`6,${h-6} 6,${h+6} ${s-8},${h+11} ${s-8},${h-11}`} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${s-5},${h-7} Q${s},${h} ${s-5},${h+7}`} fill="none" stroke={col} strokeWidth={sw}/></>);
+  if(typeId==="bma_bli") return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><polygon points={`${h},7 ${h-5},${h+2} ${h},${h-2} ${h-5},${s-8} ${h+5},${h-2} ${h},${h+2}`} fill={col}/></>);
+  if(typeId==="bma_lrm") return W(<><circle cx={9} cy={h} r={7} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-9} cy={h} r={7} fill="white" stroke={col} strokeWidth={sw}/><line x1={16} y1={h} x2={s-16} y2={h} stroke={col} strokeWidth={1} strokeDasharray="3 2"/></>);
+  if(typeId==="bma_mac") return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h+1} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.18} fontWeight="700" fill={col}>MG</text></>);
+
+  // EMA
+  if(typeId==="ema_pir") return W(<><path d={`M${h},${s-7} L4,8 A${h-4},${h-4} 0 0 1 ${s-4},8 Z`} fill="white" stroke={col} strokeWidth={sw}/>{[8,h,s-8].map((tx,i)=><line key={i} x1={h} y1={s-7} x2={tx} y2={12} stroke={col} strokeWidth={0.8}/>)}<circle cx={h} cy={s-7} r={2} fill={col}/></>);
+  if(typeId==="ema_mk")  return W(<><rect x={6} y={7} width={13} height={s-13} rx={2} fill="white" stroke={col} strokeWidth={sw}/><rect x={s-19} y={7} width={13} height={s-13} rx={2} fill="white" stroke={col} strokeWidth={sw}/><line x1={19} y1={h} x2={s-19} y2={h} stroke={col} strokeWidth={0.8} strokeDasharray="2 2"/></>);
+  if(typeId==="ema_gb")  return W(<><rect x={4} y={4} width={s-8} height={s-8} rx={1} fill="white" stroke={col} strokeWidth={sw}/><polyline points={`7,16 14,${h-4} 21,${h+4} 29,10`} fill="none" stroke={col} strokeWidth={1.5}/></>);
+  if(typeId==="ema_vib") return W(<><rect x={4} y={7} width={s-8} height={s-13} rx={3} fill="white" stroke={col} strokeWidth={sw}/><path d={`M7,${h} Q13,${h-9} ${h},${h} Q${h+6},${h+9} ${s-7},${h}`} fill="none" stroke={col} strokeWidth={1.5}/></>);
+  if(typeId==="ema_zkz") return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw+0.5}/><line x1={3} y1={15} x2={s-3} y2={15} stroke={col} strokeWidth={1}/><text x={h} y={h+5} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.2} fontWeight="700" fill={col}>EMA</text></>);
+  if(typeId==="ema_bda") return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/>{[0,1,2].map(i=><circle key={i} cx={11+i*9} cy={h+8} r={2.5} fill={col}/>)}</>);
+  if(typeId==="ema_sir") return W(<><polygon points={`7,${h-5} 7,${h+5} ${s-7},${h+10} ${s-7},${h-10}`} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-4} cy={h} r={3} fill="white" stroke={col} strokeWidth={1}/></>);
+  if(typeId==="ema_uem") return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h+1} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.3} fontWeight="700" fill={col}>!</text></>);
+  if(typeId==="ema_det") return W(<><path d={`M${h},${s-7} L4,8 A${h-4},${h-4} 0 0 1 ${s-4},8 Z`} fill="white" stroke={col} strokeWidth={sw}/><line x1={h} y1={s-7} x2={h} y2={8} stroke={col} strokeWidth={0.8}/><text x={h} y={h+2} textAnchor="middle" dominantBaseline="middle" fontSize={6} fill={col}>DM</text></>);
+
+  // ZK
+  if(typeId==="zk_leser")  return W(<><rect x={7} y={4} width={s-14} height={s-7} rx={3} fill="white" stroke={col} strokeWidth={sw}/><rect x={11} y={10} width={s-22} height={8} rx={1} fill={col} opacity={0.3}/><line x1={11} y1={21} x2={s-11} y2={21} stroke={col} strokeWidth={1}/></>);
+  if(typeId==="zk_finger") return W(<><rect x={4} y={4} width={s-8} height={s-8} rx={3} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${h},${s-10} C${h-6},${s-14} ${h-8},${h} ${h-5},${h-4} C${h-2},${h-9} ${h+2},${h-9} ${h+5},${h-4} C${h+8},${h} ${h+6},${s-14} ${h},${s-10}`} fill="none" stroke={col} strokeWidth={1.2}/></>);
+  if(typeId==="zk_pin")    return W(<><rect x={4} y={4} width={s-8} height={s-8} rx={3} fill="white" stroke={col} strokeWidth={sw}/>{[0,1,2,3,4,5,6,7,8].map(i=><circle key={i} cx={12+(i%3)*10} cy={12+Math.floor(i/3)*10} r={3} fill={col} opacity={0.4}/>)}</>);
+  if(typeId==="zk_eo")    return W(<><line x1={4} y1={5} x2={4} y2={s-5} stroke={col} strokeWidth={2.5}/><rect x={9} y={5} width={9} height={s-10} fill="white" stroke={col} strokeWidth={sw}/><rect x={18} y={h-7} width={14} height={14} rx={2} fill="white" stroke={col} strokeWidth={sw}/><circle cx={16} cy={h} r={2.5} fill={col}/></>);
+  if(typeId==="zk_ms")    return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h} cy={h} r={8} fill="none" stroke={col} strokeWidth={1.5}/><circle cx={h} cy={h} r={3} fill={col}/></>);
+  if(typeId==="zk_tm")    return W(<><rect x={3} y={7} width={16} height={s-14} rx={2} fill="white" stroke={col} strokeWidth={sw}/><rect x={s-19} y={7} width={16} height={s-14} rx={2} fill="white" stroke={col} strokeWidth={sw}/></>);
+  if(typeId==="zk_zkz")   return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw+0.5}/><line x1={3} y1={15} x2={s-3} y2={15} stroke={col} strokeWidth={1}/><text x={h} y={h+5} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.2} fontWeight="700" fill={col}>ZKZ</text></>);
+  if(typeId==="zk_ts")    return W(<><rect x={5} y={h-7} width={s-10} height={14} rx={3} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h-8} cy={h} r={4} fill="none" stroke={col} strokeWidth={1.5}/><line x1={h} y1={h} x2={h+10} y2={h-4} stroke={col} strokeWidth={2}/></>);
+
+  // VT
+  if(typeId==="vt_dome")  return W(<><path d={`M5,${h+4} A${h-5},${h-5} 0 0 1 ${s-5},${h+4} Z`} fill="white" stroke={col} strokeWidth={sw}/><line x1={5} y1={h+4} x2={s-5} y2={h+4} stroke={col} strokeWidth={sw}/><circle cx={h} cy={h+4} r={8} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h} cy={h+4} r={3.5} fill={col}/></>);
+  if(typeId==="vt_box")   return W(<><rect x={5} y={h-9} width={s-17} height={18} rx={2} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-8} cy={h} r={7} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-8} cy={h} r={3} fill={col}/></>);
+  if(typeId==="vt_ptz")   return W(<><path d={`M5,${h+4} A${h-5},${h-5} 0 0 1 ${s-5},${h+4} Z`} fill="white" stroke={col} strokeWidth={sw}/><line x1={5} y1={h+4} x2={s-5} y2={h+4} stroke={col} strokeWidth={sw}/><circle cx={h} cy={h+4} r={9} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h} cy={h+4} r={3.5} fill={col}/><path d={`M${h+9},${h-5} L${h+14},${h-10} M${h+14},${h-10} L${h+16},${h-6} M${h+14},${h-10} L${h+10},${h-8}`} fill="none" stroke={col} strokeWidth={1}/></>);
+  if(typeId==="vt_therm") return W(<><rect x={5} y={h-9} width={s-17} height={18} rx={2} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-8} cy={h} r={7} fill="white" stroke={col} strokeWidth={sw}/><circle cx={s-8} cy={h} r={3} fill={col}/><text x={12} y={h+4} fontSize={7} fill={col} fontWeight="700">IR</text></>);
+  if(typeId==="vt_nvr")   return W(<><rect x={3} y={6} width={s-6} height={s-10} rx={2} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h-2} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.19} fontWeight="700" fill={col}>NVR</text><circle cx={h} cy={h+9} r={4} fill="none" stroke={col} strokeWidth={1}/><circle cx={h} cy={h+9} r={1.5} fill={col}/></>);
+  if(typeId==="vt_mon")   return W(<><rect x={3} y={4} width={s-6} height={s-14} rx={2} fill="white" stroke={col} strokeWidth={sw}/><rect x={7} y={8} width={s-14} height={s-22} rx={1} fill={col} opacity={0.12}/><line x1={h-4} y1={s-9} x2={h+4} y2={s-9} stroke={col} strokeWidth={2}/><line x1={h-7} y1={s-5} x2={h+7} y2={s-5} stroke={col} strokeWidth={2}/></>);
+  if(typeId==="vt_sw")    return W(<><rect x={3} y={9} width={s-6} height={s-17} rx={2} fill="white" stroke={col} strokeWidth={sw}/>{[0,1,2,3].map(i=><rect key={i} x={7+i*8} y={13} width={5} height={8} rx={1} fill={col} opacity={0.5}/>)}<text x={h} y={s-4} textAnchor="middle" fontSize={6} fill={col} fontWeight="600">PoE SW</text></>);
+  if(typeId==="vt_poe")   return W(<><rect x={7} y={7} width={s-14} height={s-13} rx={3} fill="white" stroke={col} strokeWidth={sw}/><rect x={11} y={13} width={7} height={9} rx={1} fill={col} opacity={0.4}/><rect x={s-18} y={13} width={7} height={9} rx={1} fill={col} opacity={0.4}/><text x={h} y={s-4} textAnchor="middle" fontSize={7} fill={col}>PoE</text></>);
+
+  // SAA
+  if(typeId==="saa_zentrale")   return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw+0.5}/><line x1={3} y1={15} x2={s-3} y2={15} stroke={col} strokeWidth={1}/><text x={h} y={h+5} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.17} fontWeight="700" fill={col}>SAA</text></>);
+  if(typeId==="saa_verst")      return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/><path d={`M8,${h+4} L8,${h-4} L${s-12},${h-8} L${s-12},${h+8} Z`} fill={col} opacity={0.3}/><text x={h} y={s-4} textAnchor="middle" fontSize={7} fill={col} fontWeight="700">AMP</text></>);
+  if(typeId==="saa_lautspr")    return W(<><polygon points={`6,${h-5} 6,${h+5} ${s-12},${h+10} ${s-12},${h-10}`} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${s-9},${h-7} Q${s-3},${h} ${s-9},${h+7}`} fill="none" stroke={col} strokeWidth={sw}/><circle cx={4} cy={h} r={3} fill={col}/></>);
+  if(typeId==="saa_lswand")     return W(<><polygon points={`6,${h-5} 6,${h+5} ${s-12},${h+10} ${s-12},${h-10}`} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${s-9},${h-7} Q${s-3},${h} ${s-9},${h+7}`} fill="none" stroke={col} strokeWidth={sw}/><line x1={4} y1={7} x2={4} y2={s-7} stroke={col} strokeWidth={2}/></>);
+  if(typeId==="saa_lshorn")     return W(<><path d={`M5,${h-3} L5,${h+3} L${s*0.45},${h+10} L${s*0.45},${h-10} Z`} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${s*0.45},${h} Q${s*0.7},${h} ${s-4},${h-9} M${s*0.45},${h} Q${s*0.7},${h} ${s-4},${h+9}`} fill="none" stroke={col} strokeWidth={sw}/></>);
+  if(typeId==="saa_mik")        return W(<><rect x={h-5} y={5} width={10} height={16} rx={5} fill="white" stroke={col} strokeWidth={sw}/><path d={`M7,${h} Q7,${s-9} ${h},${s-9} Q${s-7},${s-9} ${s-7},${h}`} fill="none" stroke={col} strokeWidth={sw}/><line x1={h} y1={s-9} x2={h} y2={s-4} stroke={col} strokeWidth={sw}/><line x1={h-5} y1={s-4} x2={h+5} y2={s-4} stroke={col} strokeWidth={sw}/></>);
+  if(typeId==="saa_tableau")    return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/>{[0,1,2].map(i=><rect key={i} x={7} y={11+i*7} width={s-14} height={4} rx={1} fill={col} opacity={0.25}/>)}<circle cx={s-8} cy={8} r={3} fill={col}/></>);
+  if(typeId==="saa_linienverst")return W(<><rect x={3} y={8} width={s-6} height={s-15} rx={2} fill="white" stroke={col} strokeWidth={sw}/><path d={`M8,${h} L${h-3},${h-7} L${h-3},${h+7} L${s-8},${h}`} fill="none" stroke={col} strokeWidth={sw}/><text x={h} y={s-3} textAnchor="middle" fontSize={6} fill={col} fontWeight="700">LV</text></>);
+  if(typeId==="saa_monitor")    return W(<><rect x={3} y={4} width={s-6} height={s-14} rx={2} fill="white" stroke={col} strokeWidth={sw}/><rect x={7} y={8} width={s-14} height={s-22} rx={1} fill={col} opacity={0.1}/><text x={h} y={h-1} textAnchor="middle" dominantBaseline="middle" fontSize={7} fill={col} fontWeight="700">SAA</text><line x1={h-4} y1={s-9} x2={h+4} y2={s-9} stroke={col} strokeWidth={2}/><line x1={h-7} y1={s-5} x2={h+7} y2={s-5} stroke={col} strokeWidth={2}/></>);
+
+  // INTERCOM
+  if(typeId==="ic_aussenst")    return W(<><rect x={4} y={4} width={s-8} height={s-8} rx={3} fill="white" stroke={col} strokeWidth={sw}/><rect x={8} y={9} width={s-16} height={s/2-4} rx={1} fill={col} opacity={0.15}/><circle cx={h} cy={h+9} r={6} fill="none" stroke={col} strokeWidth={1.5}/><circle cx={h} cy={h+9} r={2.5} fill={col}/><line x1={h-4} y1={9+2} x2={h+4} y2={9+2} stroke={col} strokeWidth={1}/></>);
+  if(typeId==="ic_aussenst_a")  return W(<><rect x={4} y={4} width={s-8} height={s-8} rx={3} fill="white" stroke={col} strokeWidth={sw}/><path d={`M${h-6},${h-3} Q${h},${h-10} ${h+6},${h-3} Q${h},${h+4} ${h-6},${h-3} Z`} fill="none" stroke={col} strokeWidth={1.5}/><path d={`M${h-9},${h+4} Q${h},${h-4} ${h+9},${h+4}`} fill="none" stroke={col} strokeWidth={1}/><circle cx={h} cy={s-8} r={3} fill={col}/></>);
+  if(typeId==="ic_innenst")     return W(<><rect x={3} y={3} width={s-6} height={s-6} rx={3} fill="white" stroke={col} strokeWidth={sw+0.5}/><rect x={7} y={7} width={s-14} height={s/2-2} rx={1} fill={col} opacity={0.12}/><circle cx={h} cy={h+10} r={5} fill="none" stroke={col} strokeWidth={1.5}/><circle cx={h} cy={h+10} r={2} fill={col}/><line x1={h-5} y1={s-7} x2={h+5} y2={s-7} stroke={col} strokeWidth={1}/></>);
+  if(typeId==="ic_innenst_a")   return W(<><rect x={3} y={3} width={s-6} height={s-6} rx={3} fill="white" stroke={col} strokeWidth={sw}/><path d={`M9,${h-2} Q${h},${h-9} ${s-9},${h-2}`} fill="none" stroke={col} strokeWidth={1.5}/><path d={`M12,${h+5} Q${h},${h-2} ${s-12},${h+5}`} fill="none" stroke={col} strokeWidth={1}/><circle cx={h} cy={s-8} r={3} fill={col}/></>);
+  if(typeId==="ic_zentrale")    return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw+0.5}/><line x1={3} y1={15} x2={s-3} y2={15} stroke={col} strokeWidth={1}/><text x={h} y={h+5} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.17} fontWeight="700" fill={col}>IC-Z</text></>);
+  if(typeId==="ic_tueroff")     return W(<><line x1={4} y1={5} x2={4} y2={s-5} stroke={col} strokeWidth={2.5}/><rect x={9} y={7} width={9} height={s-13} fill="white" stroke={col} strokeWidth={sw}/><rect x={20} y={h-6} width={12} height={12} rx={2} fill="white" stroke={col} strokeWidth={sw}/><line x1={14} y1={h} x2={20} y2={h} stroke={col} strokeWidth={1}/></>);
+  if(typeId==="ic_klingel")     return W(<><circle cx={h} cy={h} r={h-3} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h} cy={h} r={5} fill="none" stroke={col} strokeWidth={1.5}/><circle cx={h} cy={h} r={2} fill={col}/></>);
+  if(typeId==="ic_portier")     return W(<><rect x={3} y={5} width={s-6} height={s-9} rx={2} fill="white" stroke={col} strokeWidth={sw}/><circle cx={h} cy={h-2} r={6} fill="none" stroke={col} strokeWidth={1.5}/><path d={`M8,${s-7} Q${h},${h+6} ${s-8},${s-7}`} fill="none" stroke={col} strokeWidth={1.5}/></>);
+  if(typeId==="ic_gateway")     return W(<><rect x={3} y={7} width={s-6} height={s-13} rx={2} fill="white" stroke={col} strokeWidth={sw}/><text x={h} y={h} textAnchor="middle" dominantBaseline="middle" fontSize={s*0.18} fontWeight="700" fill={col}>SIP</text><line x1={7} y1={s-7} x2={s-7} y2={s-7} stroke={col} strokeWidth={1.5} strokeDasharray="3 2"/></>);
+  if(typeId==="ic_ruf")         return W(<><rect x={4} y={6} width={s-8} height={s-11} rx={2} fill="white" stroke={col} strokeWidth={sw}/><path d={`M8,${h-2} C8,${h-8} ${h-3},${h-8} ${h-3},${h-2} L${h-3},${h+5} L${h+3},${h+5} L${h+3},${h-2} C${h+3},${h-8} ${s-8},${h-8} ${s-8},${h-2}`} fill="none" stroke={col} strokeWidth={1.5}/><line x1={h} y1={h+5} x2={h} y2={s-6} stroke={col} strokeWidth={1.5}/></>);
+
+  // Fallback
+  return W(<><rect x={3} y={3} width={s-6} height={s-6} rx={2} fill="white" stroke="#6b7280" strokeWidth={sw}/><text x={h} y={h+1} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill="#6b7280">?</text></>);
+}
+
+// ═══════════════════════════════════════════════════════
+//  HAUPTKOMPONENTE
+// ═══════════════════════════════════════════════════════
+function App() {
+  const [comps,   setComps]   = useState([]);
+  const [conns,   setConns]   = useState([]);
+  const [tool,    setTool]    = useState("select");
+  const [pType,   setPType]   = useState(null);
+  const [selC,    setSelC]    = useState(null);
+  const [selConn, setSelConn] = useState(null);
+  const [linking, setLinking] = useState(null);
+  const [cable,   setCable]   = useState("nhxch_2");
+  const [bgImg,   setBgImg]   = useState(null);
+  const [bgSz,    setBgSz]    = useState({w:1600,h:1100});
+  const [zoom,    setZoom]    = useState(1);
+  const [pan,     setPan]     = useState({x:60,y:40});
+  const [exp,     setExp]     = useState({bma:true,ema:true,zk:false,vt:false,saa:false,intercom:false});
+  const [drag,    setDrag]    = useState(null);
+  const [panning, setPanning] = useState(false);
+  const [panSt,   setPanSt]   = useState(null);
+  const [hover,   setHover]   = useState(null);
+  const [rTab,    setRTab]    = useState("props");
+
+  const svgRef   = useRef(null);
+  const imgRef   = useRef(null);
+  const jsonRef  = useRef(null);
+
+  const toWorld = useCallback((cx,cy)=>{
+    const r=svgRef.current?.getBoundingClientRect();
+    if(!r) return {x:0,y:0};
+    return {x:(cx-r.left-pan.x)/zoom, y:(cy-r.top-pan.y)/zoom};
+  },[pan,zoom]);
+
+  // Non-passive wheel
+  useEffect(()=>{
+    const el=svgRef.current; if(!el) return;
+    const h=e=>{
+      e.preventDefault();
+      setZoom(z=>Math.max(0.1,Math.min(8,z*(e.deltaY<0?1.13:0.88))));
+    };
+    el.addEventListener("wheel",h,{passive:false});
+    return ()=>el.removeEventListener("wheel",h);
+  },[]);
+
+  // Keyboard
+  useEffect(()=>{
+    const h=e=>{
+      if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT") return;
+      if(e.key==="v") setTool("select");
+      if(e.key==="p") setTool("place");
+      if(e.key==="c") setTool("connect");
+      if(e.key==="d") setTool("delete");
+      if(e.key==="Escape"){setLinking(null);setPType(null);setTool("select");}
+      if((e.key==="Delete"||e.key==="Backspace")&&selC){
+        setComps(p=>p.filter(c=>c.id!==selC));
+        setConns(p=>p.filter(c=>c.from!==selC&&c.to!==selC));
+        setSelC(null);
+      }
+    };
+    window.addEventListener("keydown",h);
+    return ()=>window.removeEventListener("keydown",h);
+  },[selC]);
+
+  const onBgDown=useCallback(e=>{
+    const isBg=e.target===svgRef.current||e.target.dataset.bg==="1";
+    if(!isBg) return;
+    if(tool==="place"&&pType){
+      const pt=toWorld(e.clientX,e.clientY);
+      const item=getItem(pType);
+      setComps(p=>[...p,{id:genId(),typeId:pType,x:Math.round(pt.x),y:Math.round(pt.y),label:item?.short||"?",floor:"EG",cable:item?.cable||"nhxch"}]);
+    } else if(tool==="select"){
+      setSelC(null);setSelConn(null);
+      setPanning(true);setPanSt({x:e.clientX-pan.x,y:e.clientY-pan.y});
+    }
+  },[tool,pType,toWorld,pan]);
+
+  const onMove=useCallback(e=>{
+    if(drag){
+      const pt=toWorld(e.clientX,e.clientY);
+      setComps(p=>p.map(c=>c.id===drag.id?{...c,x:Math.round(pt.x-drag.ox),y:Math.round(pt.y-drag.oy)}:c));
+    } else if(panning&&panSt){
+      setPan({x:e.clientX-panSt.x,y:e.clientY-panSt.y});
+    }
+  },[drag,panning,panSt,toWorld]);
+
+  const onUp=useCallback(()=>{setDrag(null);setPanning(false);},[]);
+
+  const onCompDown=useCallback((e,id)=>{
+    e.stopPropagation();
+    if(tool==="delete"){
+      setComps(p=>p.filter(c=>c.id!==id));
+      setConns(p=>p.filter(c=>c.from!==id&&c.to!==id));
+      if(selC===id) setSelC(null);
+      return;
+    }
+    if(tool==="connect"){
+      if(!linking){setLinking(id);}
+      else if(linking!==id){
+        setConns(p=>[...p,{id:`k${Date.now()}`,from:linking,to:id,cableId:cable,length:0}]);
+        setLinking(null);
+      }
+      return;
+    }
+    if(tool==="select"){
+      setSelC(id);setSelConn(null);setRTab("props");
+      const comp=comps.find(c=>c.id===id);
+      if(comp){const pt=toWorld(e.clientX,e.clientY);setDrag({id,ox:pt.x-comp.x,oy:pt.y-comp.y});}
+    }
+  },[tool,linking,cable,selC,comps,toWorld]);
+
+  const upC=(k,v)=>setComps(p=>p.map(c=>c.id===selC?{...c,[k]:v}:c));
+  const upK=(k,v)=>setConns(p=>p.map(c=>c.id===selConn?{...c,[k]:v}:c));
+
+  const selComp=useMemo(()=>comps.find(c=>c.id===selC),[comps,selC]);
+  const selConnObj=useMemo(()=>conns.find(c=>c.id===selConn),[conns,selConn]);
+
+  const parts=useMemo(()=>{
+    const byType={};
+    comps.forEach(c=>{
+      if(!byType[c.typeId]){const it=getItem(c.typeId);const cat=getCat(c.typeId);byType[c.typeId]={...it,catLabel:cat?.label,catColor:cat?.color,qty:0};}
+      byType[c.typeId].qty++;
+    });
+    const byC={};
+    conns.forEach(conn=>{
+      if(!byC[conn.cableId]) byC[conn.cableId]={...getCable(conn.cableId),cnt:0,m:0};
+      byC[conn.cableId].cnt++;byC[conn.cableId].m+=conn.length||0;
+    });
+    return{comps:Object.values(byType),cables:Object.values(byC)};
+  },[comps,conns]);
+
+  const zones=useMemo(()=>{
+    const z={};
+    comps.forEach(c=>{const k=c.floor||"EG";if(!z[k])z[k]=[];z[k].push(c);});
+    return z;
+  },[comps]);
+
+  const handleImg=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const url=URL.createObjectURL(f);
+    const img=new Image();img.onload=()=>setBgSz({w:img.naturalWidth,h:img.naturalHeight});img.src=url;
+    setBgImg(url);e.target.value="";
+  };
+  const save=()=>{
+    const b=new Blob([JSON.stringify({comps,conns},null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="sicherheitsplan.json";a.click();
+  };
+  const load=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{try{const d=JSON.parse(ev.target.result);setComps(d.comps||[]);setConns(d.conns||[]);}catch{}};
+    r.readAsText(f);e.target.value="";
+  };
+
+  const btn=(active,danger)=>({
+    padding:"4px 9px",borderRadius:4,border:"none",cursor:"pointer",
+    fontSize:11,fontWeight:600,whiteSpace:"nowrap",
+    background:danger?"#1a0a0a":active?"#2563eb":"#1e293b",
+    color:danger?"#ef4444":"#f1f5f9",
+  });
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#0f172a",color:"#e2e8f0",overflow:"hidden"}}>
+
+      {/* TOP BAR */}
+      <div style={{background:"#0a1628",borderBottom:"1px solid #1e293b",padding:"5px 10px",
+        display:"flex",alignItems:"center",gap:5,flexShrink:0,overflowX:"auto"}}>
+
+        <span style={{fontSize:13,fontWeight:800,marginRight:4,flexShrink:0,
+          background:"linear-gradient(135deg,#ef4444,#06b6d4)",
+          WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+          🛡️ SichPlan Pro
+        </span>
+        <div style={{width:1,height:16,background:"#1e293b",flexShrink:0}}/>
+
+        <input type="file" ref={imgRef} accept="image/*" style={{display:"none"}} onChange={handleImg}/>
+        <input type="file" ref={jsonRef} accept=".json" style={{display:"none"}} onChange={load}/>
+        <button onClick={()=>imgRef.current.click()} style={btn(false)}>📂 Bild</button>
+        <button onClick={()=>jsonRef.current.click()} style={btn(false)}>📂 Laden</button>
+        <button onClick={save} style={btn(false)}>💾 Speichern</button>
+        {bgImg&&<button onClick={()=>setBgImg(null)} style={btn(false)}>✕ Bild</button>}
+
+        <div style={{width:1,height:16,background:"#1e293b",flexShrink:0}}/>
+        {[["select","🖱️","Auswahl","V"],["place","📍","Platzieren","P"],
+          ["connect","⚡","Verbinden","C"],["delete","🗑️","Löschen","D"]].map(([t,ic,lb,k])=>(
+          <button key={t} onClick={()=>{setTool(t);if(t!=="place")setPType(null);}} style={btn(tool===t)} title={lb+" ["+k+"]"}>{ic} {lb}</button>
+        ))}
+
+        <div style={{width:1,height:16,background:"#1e293b",flexShrink:0}}/>
+        <span style={{fontSize:10,color:"#475569",flexShrink:0}}>Kabel:</span>
+        <select value={cable} onChange={e=>setCable(e.target.value)}
+          style={{fontSize:10,background:"#1e293b",color:"#e2e8f0",border:"1px solid #334155",borderRadius:4,padding:"3px 6px",maxWidth:180}}>
+          {CABLE_GROUPS.map(grp=>(
+            <optgroup key={grp.label} label={grp.label}>
+              {grp.ids.map(id=>{const c=getCable(id);return c?<option key={id} value={id}>{c.name} {c.spec}</option>:null;})}
+            </optgroup>
+          ))}
+        </select>
+
+        <div style={{width:1,height:16,background:"#1e293b",flexShrink:0}}/>
+        <button onClick={()=>setZoom(z=>Math.min(8,z*1.2))} style={btn(false)}>+</button>
+        <span style={{fontSize:10,color:"#475569",minWidth:34,textAlign:"center",flexShrink:0}}>{Math.round(zoom*100)}%</span>
+        <button onClick={()=>setZoom(z=>Math.max(0.1,z/1.2))} style={btn(false)}>−</button>
+        <button onClick={()=>{setZoom(1);setPan({x:60,y:40});}} style={btn(false)}>↺</button>
+
+        {linking&&<span style={{fontSize:10,background:"#451a03",color:"#fbbf24",padding:"2px 8px",borderRadius:20,flexShrink:0}}>⚡ {comps.find(c=>c.id===linking)?.label} → Ziel [Esc]</span>}
+        {tool==="place"&&pType&&<span style={{fontSize:10,background:"#14532d",color:"#86efac",padding:"2px 8px",borderRadius:20,flexShrink:0}}>📍 {getItem(pType)?.name}</span>}
+      </div>
+
+      {/* MAIN */}
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+
+        {/* LEFT - Library */}
+        <div style={{width:210,background:"#0a1628",borderRight:"1px solid #1e293b",display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
+          <div style={{padding:"6px 10px",fontSize:8,fontWeight:700,letterSpacing:1,color:"#334155",borderBottom:"1px solid #1e293b",flexShrink:0}}>KOMPONENTENBIBLIOTHEK</div>
+          <div style={{flex:1,overflowY:"auto"}}>
+            {Object.entries(CATS).map(([catId,cat])=>(
+              <div key={catId}>
+                <div onClick={()=>setExp(p=>({...p,[catId]:!p[catId]}))}
+                  style={{padding:"6px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:5,
+                    background:"#1e293b",borderBottom:"1px solid #0a1628",borderLeft:`3px solid ${cat.color}`}}>
+                  <span style={{fontSize:8,color:"#475569"}}>{exp[catId]?"▼":"▶"}</span>
+                  <span style={{fontSize:10,fontWeight:700,color:cat.color}}>{cat.label}</span>
+                  <span style={{fontSize:7,color:"#334155",marginLeft:"auto"}}>{cat.short}</span>
+                </div>
+                {exp[catId]&&cat.items.map(item=>{
+                  const act=pType===item.id&&tool==="place";
+                  return(
+                    <div key={item.id} onClick={()=>{setTool("place");setPType(item.id);}}
+                      style={{padding:"4px 8px 4px 6px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,
+                        borderBottom:"1px solid #0a1628",
+                        background:act?"#162032":"transparent",
+                        borderLeft:`3px solid ${act?cat.color:"transparent"}`}}>
+                      <div style={{flexShrink:0}}><Sym typeId={item.id} size={26}/></div>
+                      <div>
+                        <div style={{fontSize:9,fontWeight:600,color:act?"#f1f5f9":"#94a3b8",lineHeight:1.3}}>{item.name}</div>
+                        <div style={{fontSize:7,color:"#334155"}}>{item.norm}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CENTER - Canvas */}
+        <div style={{flex:1,overflow:"hidden",position:"relative",background:"#0f172a"}}
+          onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}>
+
+          {!bgImg&&comps.length===0&&(
+            <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",
+              textAlign:"center",color:"#1e293b",pointerEvents:"none"}}>
+              <div style={{fontSize:56}}>📋</div>
+              <div style={{fontSize:14,fontWeight:700,marginTop:8,color:"#334155"}}>Grundriss laden oder Komponenten platzieren</div>
+              <div style={{fontSize:11,color:"#1e293b",marginTop:5}}>Komponente links wählen → auf Plan klicken | Verbinden [C] | Zoom: Scroll</div>
+            </div>
+          )}
+
+          <svg ref={svgRef} width="100%" height="100%"
+            style={{cursor:tool==="place"?"crosshair":tool==="delete"?"not-allowed":panning?"grabbing":"grab",display:"block"}}
+            onMouseDown={onBgDown}>
+            <defs>
+              <pattern id="g" width={40*zoom} height={40*zoom} patternUnits="userSpaceOnUse" x={pan.x%(40*zoom)} y={pan.y%(40*zoom)}>
+                <path d={`M ${40*zoom} 0 L 0 0 0 ${40*zoom}`} fill="none" stroke="#1a2744" strokeWidth="0.5"/>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="#0f172a"/>
+            <rect width="100%" height="100%" fill="url(#g)"/>
+            <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+              {bgImg&&<image href={bgImg} x={0} y={0} width={bgSz.w} height={bgSz.h} preserveAspectRatio="xMidYMid meet" data-bg="1"/>}
+              {!bgImg&&<rect x={0} y={0} width={1600} height={1100} fill="white" opacity={0.02} rx={4} stroke="#1e293b" strokeWidth={1} data-bg="1"/>}
+
+              {/* Connections */}
+              {conns.map(conn=>{
+                const a=comps.find(c=>c.id===conn.from),b=comps.find(c=>c.id===conn.to);
+                if(!a||!b) return null;
+                const cl=getCable(conn.cableId);
+                const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+                const sel=selConn===conn.id;
+                return(
+                  <g key={conn.id} style={{cursor:"pointer"}}
+                    onClick={e=>{e.stopPropagation();setSelConn(conn.id);setSelC(null);setRTab("props");}}>
+                    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={14}/>
+                    <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                      stroke={sel?"#f59e0b":(cl?.color||"#475569")}
+                      strokeWidth={sel?3:2} strokeDasharray={cl?.dash||""}/>
+                    <rect x={mx-24} y={my-7} width={48} height={13} rx={3} fill="#0a1628" stroke={cl?.color||"#1e293b"} strokeWidth={0.8}/>
+                    <text x={mx} y={my+1} textAnchor="middle" dominantBaseline="middle" fontSize={6.5} fill={cl?.color||"#64748b"} fontWeight="600">
+                      {cl?.name?.split(" ")[0]} {cl?.spec}
+                    </text>
+                    {conn.length>0&&<text x={mx} y={my+11} textAnchor="middle" fontSize={6} fill="#475569">{conn.length} m</text>}
+                  </g>
+                );
+              })}
+
+              {/* Components */}
+              {comps.map(comp=>{
+                const sel=selC===comp.id,lnk=linking===comp.id;
+                const cat=getCat(comp.typeId);
+                return(
+                  <g key={comp.id} transform={`translate(${comp.x-22},${comp.y-22})`}
+                    style={{cursor:tool==="delete"?"not-allowed":tool==="connect"?"crosshair":"move"}}
+                    onMouseDown={e=>onCompDown(e,comp.id)}
+                    onMouseEnter={()=>setHover(comp.id)}
+                    onMouseLeave={()=>setHover(null)}>
+                    <rect x={1} y={2} width={44} height={44} rx={4} fill="black" opacity={0.3}/>
+                    <rect x={0} y={0} width={44} height={44} rx={4}
+                      fill={sel?"#162032":lnk?"#2d1200":"#f8fafc"}
+                      stroke={sel?"#3b82f6":lnk?"#f59e0b":(cat?.color+"44"||"#e2e8f0")}
+                      strokeWidth={sel||lnk?2:1}/>
+                    <Sym typeId={comp.typeId} size={44}/>
+                    <text x={22} y={55} textAnchor="middle" fontSize={8.5} fontWeight="700" fill={cat?.color||"#94a3b8"}>{comp.label}</text>
+                    {hover===comp.id&&(
+                      <g transform="translate(47,-6)">
+                        <rect x={0} y={0} width={130} height={30} rx={4} fill="#1e293b" stroke="#334155" strokeWidth={1}/>
+                        <text x={7} y={12} fontSize={9} fill="#f1f5f9" fontWeight="600">{getItem(comp.typeId)?.name}</text>
+                        <text x={7} y={24} fontSize={7} fill="#475569">{getItem(comp.typeId)?.norm}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        </div>
+
+        {/* RIGHT - Properties/Parts/Dist */}
+        <div style={{width:280,background:"#0a1628",borderLeft:"1px solid #1e293b",display:"flex",flexDirection:"column",flexShrink:0}}>
+          <div style={{display:"flex",gap:2,padding:"5px 6px",borderBottom:"1px solid #1e293b",flexShrink:0}}>
+            {[["props","Eigenschaften"],["parts","Stückliste"],["dist","Verteiler"]].map(([t,l])=>(
+              <button key={t} onClick={()=>setRTab(t)}
+                style={{flex:1,padding:"4px 2px",fontSize:9,fontWeight:700,
+                  background:rTab===t?"#162032":"transparent",
+                  color:rTab===t?"#3b82f6":"#334155",
+                  border:rTab===t?"1px solid #1e3a5f":"1px solid transparent",
+                  borderRadius:4,cursor:"pointer"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:10}}>
+
+            {/* EIGENSCHAFTEN */}
+            {rTab==="props"&&(
+              <div>
+                {selComp?(
+                  <>
+                    <div style={{display:"flex",justifyContent:"center",marginBottom:10,background:"#1e293b",borderRadius:8,padding:10}}>
+                      <Sym typeId={selComp.typeId} size={50}/>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f1f5f9",marginBottom:2}}>{getItem(selComp.typeId)?.name}</div>
+                    <div style={{fontSize:9,color:"#475569",fontFamily:"monospace",marginBottom:10}}>{getItem(selComp.typeId)?.norm}</div>
+                    {[["Bezeichnung","label"],["Etage / Zone","floor"]].map(([lb,key])=>(
+                      <div key={key} style={{marginBottom:8}}>
+                        <div style={{fontSize:8,color:"#475569",fontWeight:700,letterSpacing:1,marginBottom:3}}>{lb.toUpperCase()}</div>
+                        <input value={selComp[key]||""} onChange={e=>upC(key,e.target.value)}
+                          style={{width:"100%",padding:"5px 7px",background:"#1e293b",border:"1px solid #334155",borderRadius:4,color:"#e2e8f0",fontSize:11,boxSizing:"border-box"}}/>
+                      </div>
+                    ))}
+                    <div style={{marginBottom:10}}>
+                      <div style={{fontSize:8,color:"#475569",fontWeight:700,letterSpacing:1,marginBottom:3}}>ANSCHLUSSKABEL</div>
+                      <select value={selComp.cable||"nhxch"} onChange={e=>upC("cable",e.target.value)}
+                        style={{width:"100%",padding:"5px 7px",background:"#1e293b",border:"1px solid #334155",borderRadius:4,color:"#e2e8f0",fontSize:10}}>
+                        {CABLE_GROUPS.map(grp=>(<optgroup key={grp.label} label={grp.label}>{grp.ids.map(id=>{const c=getCable(id);return c?<option key={id} value={id}>{c.name} {c.spec}</option>:null;})}</optgroup>))}
+                      </select>
+                    </div>
+                    <button onClick={()=>{setComps(p=>p.filter(c=>c.id!==selC));setConns(p=>p.filter(c=>c.from!==selC&&c.to!==selC));setSelC(null);}}
+                      style={{width:"100%",padding:"6px",background:"#1a0a0a",color:"#ef4444",border:"1px solid #3d0000",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600}}>
+                      🗑️ Löschen
+                    </button>
+                  </>
+                ):selConnObj?(
+                  <>
+                    <div style={{fontSize:11,fontWeight:700,color:"#f1f5f9",marginBottom:8}}>⚡ Verbindung</div>
+                    {(()=>{
+                      const fr=comps.find(c=>c.id===selConnObj.from),to=comps.find(c=>c.id===selConnObj.to);
+                      const cl=getCable(selConnObj.cableId);
+                      return(<>
+                        <div style={{background:"#1e293b",borderRadius:6,padding:"8px 10px",marginBottom:8}}>
+                          <div style={{fontSize:10,marginBottom:3}}>Von: <b style={{color:"#e2e8f0"}}>{fr?.label}</b></div>
+                          <div style={{fontSize:10}}>Nach: <b style={{color:"#e2e8f0"}}>{to?.label}</b></div>
+                        </div>
+                        <div style={{marginBottom:8}}>
+                          <div style={{fontSize:8,color:"#475569",fontWeight:700,marginBottom:3}}>KABELTYP</div>
+                          <select value={selConnObj.cableId} onChange={e=>upK("cableId",e.target.value)}
+                            style={{width:"100%",padding:"5px 7px",background:"#1e293b",border:"1px solid #334155",borderRadius:4,color:"#e2e8f0",fontSize:10}}>
+                            {CABLE_GROUPS.map(grp=>(<optgroup key={grp.label} label={grp.label}>{grp.ids.map(id=>{const c=getCable(id);return c?<option key={id} value={id}>{c.name} {c.spec}</option>:null;})}</optgroup>))}
+                          </select>
+                        </div>
+                        <div style={{marginBottom:10}}>
+                          <div style={{fontSize:8,color:"#475569",fontWeight:700,marginBottom:3}}>LÄNGE (m)</div>
+                          <input type="number" min={0} value={selConnObj.length||0} onChange={e=>upK("length",parseFloat(e.target.value)||0)}
+                            style={{width:"100%",padding:"5px 7px",background:"#1e293b",border:"1px solid #334155",borderRadius:4,color:"#e2e8f0",fontSize:11,boxSizing:"border-box"}}/>
+                        </div>
+                        <button onClick={()=>{setConns(p=>p.filter(c=>c.id!==selConn));setSelConn(null);}}
+                          style={{width:"100%",padding:"6px",background:"#1a0a0a",color:"#ef4444",border:"1px solid #3d0000",borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:600}}>
+                          🗑️ Verbindung löschen
+                        </button>
+                      </>);
+                    })()}
+                  </>
+                ):(
+                  <>
+                    <div style={{color:"#1e3a5f",fontSize:11,textAlign:"center",padding:"14px 0 18px"}}>Komponente auswählen</div>
+                    <div style={{fontSize:8,fontWeight:700,color:"#334155",letterSpacing:1,marginBottom:8}}>KABELLEGENDE</div>
+                    {CABLE_GROUPS.map(grp=>(
+                      <div key={grp.label} style={{marginBottom:10}}>
+                        <div style={{fontSize:7,fontWeight:700,color:grp.color,letterSpacing:0.5,marginBottom:4,borderLeft:`2px solid ${grp.color}`,paddingLeft:5}}>{grp.label}</div>
+                        {grp.ids.filter(id=>id!=="custom").map(id=>{
+                          const cl=getCable(id);if(!cl)return null;
+                          return(
+                            <div key={id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                              <svg width={26} height={8} style={{flexShrink:0}}>
+                                <line x1={0} y1={4} x2={26} y2={4} stroke={cl.color} strokeWidth={2.5} strokeDasharray={cl.dash}/>
+                              </svg>
+                              <div style={{minWidth:0}}>
+                                <span style={{fontSize:8,fontWeight:600,color:cl.color}}>{cl.name} </span>
+                                <span style={{fontSize:7,color:"#475569"}}>{cl.spec}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    <div style={{marginTop:12,background:"#1e293b",borderRadius:7,padding:"9px 11px"}}>
+                      <div style={{fontSize:8,fontWeight:700,color:"#334155",marginBottom:6}}>PROJEKT</div>
+                      <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Komponenten: <b style={{color:"#3b82f6"}}>{comps.length}</b></div>
+                      <div style={{fontSize:10,color:"#64748b",marginBottom:2}}>Verbindungen: <b style={{color:"#3b82f6"}}>{conns.length}</b></div>
+                      <div style={{fontSize:10,color:"#64748b"}}>Zonen: <b style={{color:"#3b82f6"}}>{new Set(comps.map(c=>c.floor)).size}</b></div>
+                    </div>
+                    <div style={{marginTop:10,fontSize:8,color:"#1e3a5f",lineHeight:2}}>
+                      {[["V","Auswahl"],["P","Platzieren"],["C","Verbinden"],["D","Löschen"],["Esc","Abbrechen"],["Del","Entfernen"],["Scroll","Zoom"]].map(([k,l])=>(
+                        <div key={k}><span style={{display:"inline-block",background:"#1e293b",color:"#475569",padding:"0 4px",borderRadius:2,fontSize:7,fontFamily:"monospace",marginRight:5,border:"1px solid #334155"}}>{k}</span>{l}</div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* STÜCKLISTE */}
+            {rTab==="parts"&&(
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9",marginBottom:3}}>📋 Stückliste</div>
+                <div style={{fontSize:8,color:"#334155",marginBottom:10}}>Stand: {new Date().toLocaleDateString("de-DE")}</div>
+                {parts.comps.length===0?(
+                  <div style={{color:"#1e293b",fontSize:11,textAlign:"center",padding:"24px 0"}}>Keine Komponenten</div>
+                ):(
+                  <>
+                    {parts.comps.map((item,i)=>(
+                      <div key={item.id} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 7px",borderRadius:5,marginBottom:3,background:i%2===0?"#0d1829":"#162032"}}>
+                        <Sym typeId={item.id} size={24}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:9,fontWeight:600,color:"#e2e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+                          <div style={{fontSize:7,color:"#334155",fontFamily:"monospace"}}>{item.norm}</div>
+                        </div>
+                        <div style={{fontSize:15,fontWeight:800,color:"#3b82f6",flexShrink:0}}>{item.qty}</div>
+                      </div>
+                    ))}
+                    <div style={{padding:"7px 9px",background:"#1e293b",borderRadius:5,display:"flex",justifyContent:"space-between",marginTop:8,marginBottom:14}}>
+                      <span style={{fontSize:10,color:"#64748b",fontWeight:700}}>GESAMT</span>
+                      <span style={{fontSize:13,fontWeight:800,color:"#3b82f6"}}>{parts.comps.reduce((s,i)=>s+i.qty,0)} Stk.</span>
+                    </div>
+                    <div style={{fontSize:10,fontWeight:700,color:"#f1f5f9",marginBottom:7}}>🔌 Kabel</div>
+                    {parts.cables.length===0?(
+                      <div style={{color:"#1e293b",fontSize:10}}>Keine Verbindungen</div>
+                    ):parts.cables.map((cl,i)=>(
+                      <div key={cl.id} style={{padding:"6px 7px",borderRadius:5,marginBottom:3,background:i%2===0?"#0d1829":"#162032"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                          <svg width={26} height={6}><line x1={0} y1={3} x2={26} y2={3} stroke={cl.color} strokeWidth={2.5} strokeDasharray={cl.dash}/></svg>
+                          <span style={{fontSize:9,fontWeight:700,color:cl.color}}>{cl.name}</span>
+                          <span style={{fontSize:10,color:"#3b82f6",fontWeight:800,marginLeft:"auto"}}>{cl.m>0?`${cl.m} m`:`${cl.cnt}×`}</span>
+                        </div>
+                        <div style={{fontSize:7,color:"#334155"}}>{cl.spec} — {cl.desc}</div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* VERTEILER */}
+            {rTab==="dist"&&(
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:"#f1f5f9",marginBottom:3}}>🗂️ Verteiler-Doku</div>
+                <div style={{fontSize:8,color:"#334155",marginBottom:10}}>Geräte nach Zone · DIN 14675 / EN 50131</div>
+                {Object.keys(zones).length===0?(
+                  <div style={{color:"#1e293b",fontSize:11,textAlign:"center",padding:"24px 0"}}>Keine Komponenten</div>
+                ):Object.entries(zones).sort().map(([zone,zcomps])=>(
+                  <div key={zone} style={{marginBottom:12,border:"1px solid #1e293b",borderRadius:6,overflow:"hidden"}}>
+                    <div style={{background:"#1e293b",padding:"6px 9px",display:"flex",justifyContent:"space-between"}}>
+                      <span style={{fontSize:10,fontWeight:700,color:"#f1f5f9"}}>Zone: {zone}</span>
+                      <span style={{fontSize:8,color:"#334155"}}>{zcomps.length} Geräte</span>
+                    </div>
+                    {zcomps.map((comp,i)=>{
+                      const item=getItem(comp.typeId),cat=getCat(comp.typeId),cl=getCable(comp.cable);
+                      return(
+                        <div key={comp.id} style={{padding:"5px 9px",background:i%2===0?"#0d1829":"#0f172a",borderBottom:"1px solid #0a1628",display:"flex",alignItems:"center",gap:6}}>
+                          <Sym typeId={comp.typeId} size={20}/>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:9,fontWeight:700,color:"#e2e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{comp.label}</div>
+                            <div style={{fontSize:7,color:cat?.color}}>{item?.name}</div>
+                            <div style={{fontSize:6,color:"#334155",fontFamily:"monospace"}}>{cl?.name} · {item?.norm}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .catch(e=>console.log('SW:',e));
+  });
+}
+</script>
+</body>
+</html>
